@@ -89,6 +89,7 @@ export const api = {
   toggleUnit: (id) => req(`/units/${id}/toggle`, { method: 'PATCH' }),
   setLeader: (id, body) => req(`/units/${id}/leader`, { method: 'POST', body }),
   reservedAssign: (id, body) => req(`/units/${id}/reserved-assign`, { method: 'POST', body }),
+  deleteUnit: (id) => req(`/units/${id}`, { method: 'DELETE' }),
 
   // Dashboard
   getActiveEvent: () => req('/dashboard/active-event'),
