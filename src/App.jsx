@@ -1904,6 +1904,11 @@ function Dashboard({ activeEvent }) {
           { label: 'Checked In',   value: s.present       ?? '—', sub: `${s.presentPercent ?? 0}% of registered` },
           { label: 'Males',        value: s.malePresent   ?? '—', sub: 'present' },
           { label: 'Females',      value: s.femalePresent ?? '—', sub: 'present' },
+          {
+            label: 'Workers',
+            value: (s.workersRegistered ?? s.workerRegistered ?? s.workers ?? 0),
+            sub: `${(s.workersPresent ?? s.workerPresent ?? 0)} present`,
+          },
           { label: 'Assigned',     value: s.assigned      ?? '—', sub: 'in rooms/dorms' },
           { label: 'Active Units', value: s.activeUnits   ?? '—', sub: `${s.activeRooms ?? 0} rooms · ${s.activeDorms ?? 0} dorms` },
         ].map(c => (
@@ -2187,7 +2192,10 @@ function Attendees({ activeEvent }) {
                 <tbody>
                   {attendees.map(a => (
                     <tr key={a._id}>
-                      <td className="td-name">{a.surname}, {a.firstName}</td>
+                      <td className="td-name">
+                        <span>{a.surname}, {a.firstName}</span>
+                        {a.isWorker && <span className="badge badge-brown" style={{ marginLeft: 8 }}>Worker</span>}
+                      </td>
                       <td><GenderBadge g={a.gender} /></td>
                       <td className="text-muted">{a.fellowship || '—'}</td>
                       <td style={{ fontSize: 11, color: 'var(--text-3)' }}>
@@ -2242,7 +2250,10 @@ function Attendees({ activeEvent }) {
 
 // ── ADD ATTENDEE MODAL ────────────────────────────────────────────────────────
 function AddAttendeeModal({ eventId, onClose, onSaved }) {
-  const [form, setForm] = useState({ firstName: '', surname: '', gender: '', fellowship: '', phone: '', email: '', address: '' });
+  const [form, setForm] = useState({
+    firstName: '', surname: '', gender: '', fellowship: '',
+    phone: '', email: '', address: '', isWorker: false, workerRole: '',
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [fellowships, setFellowships] = useState([]);
@@ -2283,6 +2294,20 @@ function AddAttendeeModal({ eventId, onClose, onSaved }) {
         <div className="form-group"><label className="form-label">Email</label><input className="input" type="email" value={form.email} onChange={e => set('email', e.target.value)} /></div>
       </div>
       <div className="form-group"><label className="form-label">Address / Location</label><input className="input" placeholder="City, State" value={form.address} onChange={e => set('address', e.target.value)} /></div>
+      <label className="checkbox-row mt-8">
+        <input type="checkbox" checked={form.isWorker} onChange={e => set('isWorker', e.target.checked)} />
+        Mark as Worker
+      </label>
+      <div className="form-group">
+        <label className="form-label">Worker Role</label>
+        <input
+          className="input"
+          placeholder="e.g. Usher, Protocol, Media"
+          value={form.workerRole}
+          onChange={e => set('workerRole', e.target.value)}
+          disabled={!form.isWorker}
+        />
+      </div>
     </Modal>
   );
 }
@@ -2293,6 +2318,7 @@ function ImportModal({ eventId, onClose, onSaved }) {
   const [errors, setErrors]   = useState([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg]         = useState('');
+  const [isWorkersList, setIsWorkersList] = useState(false);
 
   // RFC 4180-compliant CSV parser — handles quoted fields containing commas/newlines
   const parseCSV = (text) => {
@@ -2385,8 +2411,12 @@ function ImportModal({ eventId, onClose, onSaved }) {
         phone:      (r.phone   || '').trim(),
         email:      (r.email   || '').trim(),
         address:    (r.address || '').trim(),
+        isWorker:   isWorkersList || ['true', 'yes', '1'].includes(String(r.is_worker || r.isWorker || '').trim().toLowerCase()),
+        workerRole: (r.worker_role || r.workerrole || r.workerRole || '').trim(),
       }));
-      const res = await api.importAttendees({ eventId, attendees });
+      const res = isWorkersList
+        ? await api.importWorkers({ eventId, attendees })
+        : await api.importAttendees({ eventId, attendees });
       onSaved(res.count);
     } catch (e) { setMsg(`Error: ${e.message}`); }
     finally { setLoading(false); }
@@ -2404,12 +2434,21 @@ function ImportModal({ eventId, onClose, onSaved }) {
       <Alert type="info">
         <div>
           <div style={{ marginBottom: 4 }}>Required columns: <code>first_name, surname, gender</code></div>
-          <div>Optional: <code>fellowship, phone, email, address</code></div>
+          <div>Optional: <code>fellowship, phone, email, address, is_worker, worker_role</code></div>
+          {isWorkersList && (
+            <div style={{ marginTop: 4 }}>
+              Workers list mode is on: <code>is_worker</code> is optional and all rows will be imported as workers.
+            </div>
+          )}
           <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>
             Quoted fields with commas are supported. Also accepts <code>church_center</code> for fellowship.
           </div>
         </div>
       </Alert>
+      <label className="checkbox-row mt-8" style={{ marginBottom: 10 }}>
+        <input type="checkbox" checked={isWorkersList} onChange={e => setIsWorkersList(e.target.checked)} />
+        This is a workers list
+      </label>
       <input type="file" accept=".csv,.txt" onChange={onFile}
         style={{ color: 'var(--text-2)', fontSize: 13, marginTop: 8 }} />
       {errors.length > 0 && (
@@ -2424,7 +2463,7 @@ function ImportModal({ eventId, onClose, onSaved }) {
             <thead>
               <tr>
                 <th>Name</th><th>Gender</th><th>Fellowship</th>
-                <th>Phone</th><th>Email</th><th>Address</th>
+                <th>Worker</th><th>Role</th><th>Phone</th><th>Email</th><th>Address</th>
               </tr>
             </thead>
             <tbody>
@@ -2433,6 +2472,8 @@ function ImportModal({ eventId, onClose, onSaved }) {
                   <td>{r.surname}, {r.first_name||r.firstname||r.firstName}</td>
                   <td>{r.gender}</td>
                   <td>{r.fellowship||r.church_center||'—'}</td>
+                  <td>{isWorkersList || ['true', 'yes', '1'].includes(String(r.is_worker || r.isWorker || '').trim().toLowerCase()) ? 'Yes' : 'No'}</td>
+                  <td>{r.worker_role || r.workerrole || r.workerRole || '—'}</td>
                   <td>{r.phone||'—'}</td>
                   <td>{r.email||'—'}</td>
                   <td>{r.address||'—'}</td>
@@ -2553,6 +2594,7 @@ function EditAttendeeForm({ attendee, fellowships, onSaved }) {
     firstName: attendee.firstName||'', surname: attendee.surname||'',
     fellowship: attendee.fellowship||'', phone: attendee.phone||'',
     email: attendee.email||'', address: attendee.address||'',
+    isWorker: !!attendee.isWorker, workerRole: attendee.workerRole||'',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
@@ -2581,6 +2623,20 @@ function EditAttendeeForm({ attendee, fellowships, onSaved }) {
         <div className="form-group"><label className="form-label">Email</label><input className="input" type="email" value={form.email} onChange={e=>set('email',e.target.value)} /></div>
       </div>
       <div className="form-group"><label className="form-label">Address</label><input className="input" value={form.address} onChange={e=>set('address',e.target.value)} /></div>
+      <label className="checkbox-row mt-8">
+        <input type="checkbox" checked={form.isWorker} onChange={e=>set('isWorker', e.target.checked)} />
+        Mark as Worker
+      </label>
+      <div className="form-group">
+        <label className="form-label">Worker Role</label>
+        <input
+          className="input"
+          placeholder="e.g. Usher, Protocol, Media"
+          value={form.workerRole}
+          onChange={e=>set('workerRole', e.target.value)}
+          disabled={!form.isWorker}
+        />
+      </div>
       <button className="btn btn-gold w-full" onClick={submit} disabled={loading}>{loading?<Spinner size={14}/>:'Save Changes'}</button>
     </div>
   );
@@ -2882,7 +2938,11 @@ function UnitDetailModal({ unit: init, onClose }) {
               <div className="form-group"><label className="form-label">Assign Leader (from occupants)</label>
                 <select className="select" value={leaderId} onChange={e=>setLeaderId(e.target.value)}>
                   <option value="">Select occupant…</option>
-                  {u.occupants?.map(o => <option key={o._id} value={o._id}>{o.firstName} {o.surname}</option>)}
+                  {u.occupants?.map(o => (
+                    <option key={o._id} value={o._id}>
+                      {o.firstName} {o.surname}{o.isWorker ? ' · Worker' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               {u.reservedSlots > 0 && (
@@ -2948,9 +3008,9 @@ function Reports({ activeEvent }) {
 
   const exportCSV = () => {
     const rows = sheet?.data || [];
-    const hdr = 'No,Surname,First Name,Gender,Fellowship,Phone,Email,Address,Status,Unit\n';
+    const hdr = 'No,Surname,First Name,Gender,Worker,Worker Role,Fellowship,Phone,Email,Address,Status,Unit\n';
     const body = rows.map(r =>
-      `${r.no},${r.surname},${r.firstName},${r.gender},${r.fellowship||''},${r.phone||''},${r.email||''},${r.address||''},${r.present?'Present':'Absent'},${r.unit||''}`
+      `${r.no},${r.surname},${r.firstName},${r.gender},${r.isWorker?'Yes':'No'},${r.workerRole||''},${r.fellowship||''},${r.phone||''},${r.email||''},${r.address||''},${r.present?'Present':'Absent'},${r.unit||''}`
     ).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([hdr+body],{type:'text/csv'}));
@@ -2972,7 +3032,7 @@ function Reports({ activeEvent }) {
     <p>Attendance Sheet &nbsp;·&nbsp; ${new Date().toLocaleDateString('en-NG', { day:'numeric', month:'long', year:'numeric' })} &nbsp;·&nbsp; ${rows.length} records</p>
     <table><thead><tr>
       <th>#</th><th>Surname</th><th>First Name</th><th>Gender</th>
-      <th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th>
+      <th>Worker</th><th>Role</th><th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th>
     </tr></thead>
     <tbody>${rows.map(r =>
       `<tr>
@@ -2980,6 +3040,8 @@ function Reports({ activeEvent }) {
         <td>${r.surname}</td>
         <td>${r.firstName}</td>
         <td>${r.gender}</td>
+        <td>${r.isWorker ? 'Yes' : 'No'}</td>
+        <td>${r.workerRole || ''}</td>
         <td>${r.fellowship || ''}</td>
         <td>${r.phone     || ''}</td>
         <td>${r.email     || ''}</td>
@@ -3026,7 +3088,7 @@ function Reports({ activeEvent }) {
             {sl ? <div className="loading-overlay"><Spinner /></div> : (
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>#</th><th>Surname</th><th>First Name</th><th>Gender</th><th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th></tr></thead>
+                  <thead><tr><th>#</th><th>Surname</th><th>First Name</th><th>Gender</th><th>Worker</th><th>Role</th><th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th></tr></thead>
                   <tbody>
                     {(sheet?.data||[]).map(r => (
                       <tr key={r.no}>
@@ -3034,6 +3096,8 @@ function Reports({ activeEvent }) {
                         <td className="td-name">{r.surname}</td>
                         <td>{r.firstName}</td>
                         <td><GenderBadge g={r.gender} /></td>
+                        <td>{r.isWorker ? <span className="badge badge-brown">Worker</span> : <span className="text-muted">—</span>}</td>
+                        <td className="text-muted">{r.workerRole || '—'}</td>
                         <td className="text-muted">{r.fellowship||'—'}</td>
                         <td className="text-muted">{r.phone||'—'}</td>
                         <td className="text-muted">{r.email||'—'}</td>

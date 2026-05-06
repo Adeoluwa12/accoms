@@ -76,6 +76,7 @@ export const api = {
   createAttendee: (body) => req('/attendees', { method: 'POST', body }),
   updateAttendee: (id, body) => req(`/attendees/${id}`, { method: 'PATCH', body }),
   importAttendees: (body) => req('/attendees/import', { method: 'POST', body }),
+  importWorkers: (body) => req('/attendees/import-workers', { method: 'POST', body }),
   checkIn: (id) => req(`/attendees/${id}/checkin`, { method: 'POST' }),
   undoCheckIn: (id) => req(`/attendees/${id}/undo`, { method: 'POST' }),
   assignAttendee: (id, body) => req(`/attendees/${id}/assign`, { method: 'POST', body }),
