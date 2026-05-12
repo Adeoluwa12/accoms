@@ -1904,11 +1904,8 @@ function Dashboard({ activeEvent }) {
           { label: 'Checked In',   value: s.present       ?? '—', sub: `${s.presentPercent ?? 0}% of registered` },
           { label: 'Males',        value: s.malePresent   ?? '—', sub: 'present' },
           { label: 'Females',      value: s.femalePresent ?? '—', sub: 'present' },
-          {
-            label: 'Workers',
-            value: (s.workersRegistered ?? s.workerRegistered ?? s.workers ?? 0),
-            sub: `${(s.workersPresent ?? s.workerPresent ?? 0)} present`,
-          },
+          { label: 'Workers',         value: s.workersTotal   ?? '—', sub: 'registered' },
+          { label: 'Workers Present', value: s.workersPresent ?? '—', sub: 'checked in' },
           { label: 'Assigned',     value: s.assigned      ?? '—', sub: 'in rooms/dorms' },
           { label: 'Active Units', value: s.activeUnits   ?? '—', sub: `${s.activeRooms ?? 0} rooms · ${s.activeDorms ?? 0} dorms` },
         ].map(c => (
@@ -3008,9 +3005,9 @@ function Reports({ activeEvent }) {
 
   const exportCSV = () => {
     const rows = sheet?.data || [];
-    const hdr = 'No,Surname,First Name,Gender,Worker,Worker Role,Fellowship,Phone,Email,Address,Status,Unit\n';
+    const hdr = 'No,Surname,First Name,Gender,Fellowship,Phone,Email,Address,Status,Unit,Worker,Role\n';
     const body = rows.map(r =>
-      `${r.no},${r.surname},${r.firstName},${r.gender},${r.isWorker?'Yes':'No'},${r.workerRole||''},${r.fellowship||''},${r.phone||''},${r.email||''},${r.address||''},${r.present?'Present':'Absent'},${r.unit||''}`
+      `${r.no},${r.surname},${r.firstName},${r.gender},${r.fellowship||''},${r.phone||''},${r.email||''},${r.address||''},${r.present?'Present':'Absent'},${r.unit||''},${r.isWorker ? 'Yes' : 'No'},${r.workerRole || ''}`
     ).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([hdr+body],{type:'text/csv'}));
@@ -3032,7 +3029,8 @@ function Reports({ activeEvent }) {
     <p>Attendance Sheet &nbsp;·&nbsp; ${new Date().toLocaleDateString('en-NG', { day:'numeric', month:'long', year:'numeric' })} &nbsp;·&nbsp; ${rows.length} records</p>
     <table><thead><tr>
       <th>#</th><th>Surname</th><th>First Name</th><th>Gender</th>
-      <th>Worker</th><th>Role</th><th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th>
+      <th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th>
+      <th>Worker</th><th>Role</th>
     </tr></thead>
     <tbody>${rows.map(r =>
       `<tr>
@@ -3040,13 +3038,13 @@ function Reports({ activeEvent }) {
         <td>${r.surname}</td>
         <td>${r.firstName}</td>
         <td>${r.gender}</td>
-        <td>${r.isWorker ? 'Yes' : 'No'}</td>
-        <td>${r.workerRole || ''}</td>
         <td>${r.fellowship || ''}</td>
         <td>${r.phone     || ''}</td>
         <td>${r.email     || ''}</td>
         <td>${r.address   || ''}</td>
         <td>${r.unit      || ''}</td>
+        <td>${r.isWorker ? 'Worker' : ''}</td>
+        <td>${r.workerRole || ''}</td>
       </tr>`
     ).join('')}</tbody>
     </table></body></html>`;
@@ -3088,7 +3086,7 @@ function Reports({ activeEvent }) {
             {sl ? <div className="loading-overlay"><Spinner /></div> : (
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>#</th><th>Surname</th><th>First Name</th><th>Gender</th><th>Worker</th><th>Role</th><th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th></tr></thead>
+                  <thead><tr><th>#</th><th>Surname</th><th>First Name</th><th>Gender</th><th>Fellowship</th><th>Phone</th><th>Email</th><th>Address</th><th>Unit</th><th>Worker</th><th>Role</th></tr></thead>
                   <tbody>
                     {(sheet?.data||[]).map(r => (
                       <tr key={r.no}>
@@ -3096,13 +3094,13 @@ function Reports({ activeEvent }) {
                         <td className="td-name">{r.surname}</td>
                         <td>{r.firstName}</td>
                         <td><GenderBadge g={r.gender} /></td>
-                        <td>{r.isWorker ? <span className="badge badge-brown">Worker</span> : <span className="text-muted">—</span>}</td>
-                        <td className="text-muted">{r.workerRole || '—'}</td>
                         <td className="text-muted">{r.fellowship||'—'}</td>
                         <td className="text-muted">{r.phone||'—'}</td>
                         <td className="text-muted">{r.email||'—'}</td>
                         <td className="text-muted">{r.address||'—'}</td>
                         <td className="td-mono">{r.unit||'—'}</td>
+                        <td>{r.isWorker ? <span className="badge badge-gold">Worker</span> : '—'}</td>
+                        <td className="text-muted">{r.workerRole || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
